@@ -2,6 +2,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
 from telegram.request import HTTPXRequest
 import httpx
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 TOKEN = "8756387127:AAHPEDI_kWnnIJYYjutLPNnYopGHAqHb9aY"
 ADMIN_ID = 6878072029
@@ -10,6 +12,18 @@ SUPPORT = "@Stephenemmanuel"
 PROFIT_MARGIN = 0.10
 
 ASKING_AMOUNT, ASKING_ACCOUNT_NUMBER, ASKING_ACCOUNT_NAME, ASKING_BANK_NAME = range(4)
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Esoft Bot is running!")
+    def log_message(self, format, *args):
+        pass
+
+def run_server():
+    server = HTTPServer(("0.0.0.0", 8080), Handler)
+    server.serve_forever()
 
 async def get_live_rate():
     try:
@@ -171,6 +185,8 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 if __name__ == "__main__":
+    threading.Thread(target=run_server, daemon=True).start()
+    
     request = HTTPXRequest(connect_timeout=30, read_timeout=30)
     app = ApplicationBuilder().token(TOKEN).request(request).build()
 
