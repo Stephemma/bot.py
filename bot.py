@@ -66,6 +66,12 @@ async def rate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def sell(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.user_data.get("amount"):
+        await update.message.reply_text(
+            "⚠️ You have an unfinished transaction!\n\n"
+            "Type /cancel to cancel it and start a new one."
+        )
+        return ASKING_AMOUNT
     rate = await get_live_rate()
     await update.message.reply_text(
         f"💰 *Start a Transaction*\n\n"
@@ -181,12 +187,13 @@ async def support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Transaction cancelled!")
+    context.user_data.clear()
+    await update.message.reply_text("❌ Transaction cancelled! Type /sell to start a new one.")
     return ConversationHandler.END
 
 if __name__ == "__main__":
     threading.Thread(target=run_server, daemon=True).start()
-    
+
     request = HTTPXRequest(connect_timeout=30, read_timeout=30)
     app = ApplicationBuilder().token(TOKEN).request(request).build()
 
