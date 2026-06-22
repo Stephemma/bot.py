@@ -13,6 +13,13 @@ PROFIT_MARGIN = 0.10
 
 ASKING_AMOUNT, ASKING_ACCOUNT_NUMBER, ASKING_ACCOUNT_NAME, ASKING_BANK_NAME = range(4)
 
+STEP_MESSAGES = {
+    ASKING_AMOUNT: "Please enter how much USDT you want to sell:",
+    ASKING_ACCOUNT_NUMBER: "Please enter your *Account Number*:",
+    ASKING_ACCOUNT_NAME: "Please enter your *Account Name*:",
+    ASKING_BANK_NAME: "Please enter your *Bank Name*:",
+}
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -66,13 +73,26 @@ async def rate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def sell(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.user_data.get("amount"):
+    current_step = context.user_data.get("current_step")
+    
+    if current_step is not None:
+        keyboard = [
+            [
+                InlineKeyboardButton("▶️ Continue", callback_data="continue_transaction"),
+                InlineKeyboardButton("❌ Cancel", callback_data="cancel_transaction")
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(
-            "⚠️ You have an unfinished transaction!\n\n"
-            "Type /cancel to cancel it and start a new one."
+            "⚠️ *You have an unfinished transaction!*\n\n"
+            "What would you like to do?",
+            parse_mode="Markdown",
+            reply_markup=reply_markup
         )
-        return ASKING_AMOUNT
+        return current_step
+
     rate = await get_live_rate()
+    context.user_data["current_step"] = ASKING_AMOUNT
     await update.message.reply_text(
         f"💰 *Start a Transaction*\n\n"
         f"Current rate: 1 USDT = ₦{rate:,}\n\n"
@@ -89,6 +109,7 @@ async def get_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
         naira = amount * rate
         context.user_data["amount"] = amount
         context.user_data["naira"] = naira
+        context.user_data["current_step"] = ASKING_ACCOUNT_NUMBER
         await update.message.reply_text(
             f"✅ *Transaction Summary:*\n\n"
             f"You sell: {amount} USDT\n"
@@ -105,11 +126,13 @@ async def get_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def get_account_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["account_number"] = update.message.text
+    context.user_data["current_step"] = ASKING_ACCOUNT_NAME
     await update.message.reply_text("Please enter your *Account Name*:", parse_mode="Markdown")
     return ASKING_ACCOUNT_NAME
 
 async def get_account_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["account_name"] = update.message.text
+    context.user_data["current_step"] = ASKING_BANK_NAME
     await update.message.reply_text("Please enter your *Bank Name*:", parse_mode="Markdown")
     return ASKING_BANK_NAME
 
@@ -150,12 +173,30 @@ async def get_bank_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
         reply_markup=reply_markup
     )
+    context.user_data.clear()
     return ConversationHandler.END
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
+
+    if data == "continue_transaction":
+        current_step = context.user_data.get("current_step")
+        message = STEP_MESSAGES.get(current_step, "Please continue your transaction:")
+        await query.edit_message_text(
+            f"▶️ *Continuing your transaction...*\n\n{message}",
+            parse_mode="Markdown"
+        )
+        return current_step
+
+    elif data == "cancel_transaction":
+        context.user_data.clear()
+        await query.edit_message_text(
+            "❌ Transaction cancelled! Type /sell to start a new one."
+        )
+        return ConversationHandler.END
+
     action, user_id = data.split("_")
     user_id = int(user_id)
 
